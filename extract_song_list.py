@@ -26,7 +26,7 @@ except ImportError:
 
 
 # ==================== 配置 ====================
-SOURCE_DIR = Path("/home/hanxiao/Music/LocalMusic")
+SOURCE_DIR = Path("/home/hanxiao/Music/163")
 OUTPUT_FILE = Path("/home/hanxiao/Music/song_list.py")
 SUPPORTED_EXTS = {
     '.mp3', '.flac', '.ogg', '.opus', '.m4a', '.mp4',

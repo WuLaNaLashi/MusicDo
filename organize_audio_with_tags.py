@@ -30,7 +30,7 @@ except ImportError:
 
 
 # ==================== 配置 ====================
-SOURCE_DIR = Path("/home/hanxiao/Music/LocalMusic")
+SOURCE_DIR = Path("/home/hanxiao/Music/163")
 TARGET_DIR = Path("/home/hanxiao/Music/yzj")
 REPORT_FILE = TARGET_DIR / "audio_catalog.csv"
 SUPPORTED_EXTS = {
