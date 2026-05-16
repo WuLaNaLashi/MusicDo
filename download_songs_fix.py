@@ -107,13 +107,14 @@ def remux_to_opus(filepath):
         opus_path,
     ]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        r = subprocess.run(cmd, capture_output=True, text=True, errors='replace', timeout=60)
         if r.returncode == 0 and file_ok(opus_path):
             os.remove(filepath)
             log(f"[REMUX] {os.path.basename(opus_path)} (无损重封装)")
             return opus_path
         else:
-            log(f"[REMUX WARN] 标准重封装失败: {r.stderr[:200]}")
+            err = r.stderr[:300] if r.stderr else "未知错误"
+            log(f"[REMUX WARN] 标准重封装失败: {err}")
             if os.path.exists(opus_path):
                 os.remove(opus_path)
     except Exception as e:
@@ -121,7 +122,7 @@ def remux_to_opus(filepath):
         if os.path.exists(opus_path):
             os.remove(opus_path)
 
-    # 方案 2: 不带原 metadata 重封装（有时 webm 的 metadata 格式会导致 opus muxer 出错）
+    # 方案 2: 不带原 metadata 重封装
     log("[REMUX RETRY] 尝试不带原 metadata 重封装...")
     cmd2 = [
         "ffmpeg", "-y",
@@ -132,13 +133,14 @@ def remux_to_opus(filepath):
         opus_path,
     ]
     try:
-        r = subprocess.run(cmd2, capture_output=True, text=True, timeout=60)
+        r = subprocess.run(cmd2, capture_output=True, text=True, errors='replace', timeout=60)
         if r.returncode == 0 and file_ok(opus_path):
             os.remove(filepath)
             log(f"[REMUX] {os.path.basename(opus_path)} (无损重封装, 无原 metadata)")
             return opus_path
         else:
-            log(f"[REMUX WARN] 备用方案也失败: {r.stderr[:200]}")
+            err = r.stderr[:300] if r.stderr else "未知错误"
+            log(f"[REMUX WARN] 备用方案也失败: {err}")
             if os.path.exists(opus_path):
                 os.remove(opus_path)
     except Exception as e:
@@ -146,7 +148,7 @@ def remux_to_opus(filepath):
         if os.path.exists(opus_path):
             os.remove(opus_path)
 
-    # 方案 3: 输出为 .ogg 再重命名为 .opus（某些 ffmpeg 版本对 .ogg muxer 更稳定）
+    # 方案 3: 输出为 .ogg 再重命名为 .opus
     ogg_path = filepath[:-5] + ".ogg"
     cmd3 = [
         "ffmpeg", "-y",
@@ -157,14 +159,15 @@ def remux_to_opus(filepath):
         ogg_path,
     ]
     try:
-        r = subprocess.run(cmd3, capture_output=True, text=True, timeout=60)
+        r = subprocess.run(cmd3, capture_output=True, text=True, errors='replace', timeout=60)
         if r.returncode == 0 and file_ok(ogg_path):
             os.rename(ogg_path, opus_path)
             os.remove(filepath)
             log(f"[REMUX] {os.path.basename(opus_path)} (ogg->opus 无损重封装)")
             return opus_path
         else:
-            log(f"[REMUX FAIL] 所有重封装方案均失败: {r.stderr[:200]}")
+            err = r.stderr[:300] if r.stderr else "未知错误"
+            log(f"[REMUX FAIL] 所有重封装方案均失败: {err}")
             if os.path.exists(ogg_path):
                 os.remove(ogg_path)
     except Exception as e:
@@ -196,12 +199,13 @@ def set_metadata(filepath, title, artist, comment=None):
         cmd.insert(-1, f"comment={comment}")
 
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        r = subprocess.run(cmd, capture_output=True, text=True, errors='replace', timeout=60)
         if r.returncode == 0 and file_ok(tmp):
             os.replace(tmp, filepath)
             return True
         else:
-            log(f"[META WARN] ffmpeg 写入失败: {r.stderr[:200]}")
+            err = r.stderr[:300] if r.stderr else "未知错误"
+            log(f"[META WARN] ffmpeg 写入失败: {err}")
     except Exception as e:
         log(f"[META ERR] {e}")
 
@@ -226,7 +230,7 @@ def thumb_to_jpeg_bytes(thumb_path):
         jpg_path,
     ]
     try:
-        r = subprocess.run(convert_cmd, capture_output=True, text=True, timeout=30)
+        r = subprocess.run(convert_cmd, capture_output=True, text=True, errors='replace', timeout=30)
         if r.returncode == 0 and os.path.exists(jpg_path) and os.path.getsize(jpg_path) > 1000:
             with open(jpg_path, "rb") as f:
                 data = f.read()
@@ -299,7 +303,6 @@ def embed_thumbnail(filepath, thumb_path):
             return True
 
         elif ext == ".webm":
-            # webm 容器封面支持差，尝试用 ffmpeg 嵌入（作为视频流）
             log("[THUMB] webm 容器尝试 ffmpeg 嵌入封面...")
             tmp = filepath + ".cover.webm"
             cmd = [
@@ -314,12 +317,13 @@ def embed_thumbnail(filepath, thumb_path):
                 tmp,
             ]
             try:
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                r = subprocess.run(cmd, capture_output=True, text=True, errors='replace', timeout=60)
                 if r.returncode == 0 and file_ok(tmp):
                     os.replace(tmp, filepath)
                     return True
                 else:
-                    log(f"[THUMB WARN] webm 封面嵌入失败: {r.stderr[:200]}")
+                    err = r.stderr[:200] if r.stderr else "未知错误"
+                    log(f"[THUMB WARN] webm 封面嵌入失败: {err}")
             except Exception as e:
                 log(f"[THUMB WARN] webm 封面嵌入异常: {e}")
             finally:
@@ -344,7 +348,7 @@ def ffprobe_info(filepath):
             "-show_streams", "-show_format",
             filepath
         ]
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        r = subprocess.run(cmd, capture_output=True, text=True, errors='replace', timeout=20)
         data = json.loads(r.stdout)
         fmt = data.get("format", {})
         streams = data.get("streams", [])
@@ -383,7 +387,7 @@ def find_thumbnail(base_name):
     return None
 
 
-# ==================== 智能选源（修复版） ====================
+# ==================== 智能选源 ====================
 
 def pick_best_audio_id(song, artist):
     """
@@ -399,7 +403,7 @@ def pick_best_audio_id(song, artist):
         search_query,
     ]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=ENV)
+        r = subprocess.run(cmd, capture_output=True, text=True, errors='replace', timeout=60, env=ENV)
         if r.returncode != 0:
             return None
         ids = [line.strip() for line in r.stdout.strip().split("\n") if line.strip()]
@@ -424,7 +428,7 @@ def pick_best_audio_id(song, artist):
             url,
         ]
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=ENV)
+            r = subprocess.run(cmd, capture_output=True, text=True, errors='replace', timeout=30, env=ENV)
             if r.returncode != 0:
                 continue
             info = json.loads(r.stdout.strip())
@@ -438,16 +442,14 @@ def pick_best_audio_id(song, artist):
         title = info.get("title") or ""
         channel = info.get("channel") or ""
 
-        # 【核心修复】繁简转换后匹配
         title_norm = normalize_chinese(title)
         song_norm = normalize_chinese(song_lower)
         artist_norm = normalize_chinese(artist_lower)
         channel_norm = normalize_chinese(channel)
 
-        # 【核心修复】硬性歌名过滤：歌名必须出现在标题中
+        # 硬性歌名过滤
         song_matched = song_norm in title_norm
         if not song_matched:
-            # 去除空格和特殊符号再试
             song_stripped = re.sub(r'[\s\-~《》\(\)（）\[\]]', '', song_norm)
             title_stripped = re.sub(r'[\s\-~《》\(\)（）\[\]]', '', title_norm)
             song_matched = song_stripped in title_stripped
@@ -456,10 +458,8 @@ def pick_best_audio_id(song, artist):
             log(f"  [SKIP] 歌名不匹配: {title[:40]}")
             continue
 
-        # 歌手匹配（软性加分，不淘汰，防止繁简遗漏）
         artist_matched = artist_norm in title_norm or artist_norm in channel_norm
 
-        # 解析音频格式
         formats = info.get("formats", [])
         max_abr = 0
         has_opus = False
@@ -485,12 +485,10 @@ def pick_best_audio_id(song, artist):
                     max_abr = abr
                     best_fmt = f.get("format_id")
 
-        # 语义评分
         score = max_abr
         if has_opus:
             score += 30
 
-        # 【修复】中英文关键词
         good_keywords = ["audio", "lyrics", "official audio", "ost", "soundtrack", "hq",
                          "歌词", "音频", "官方", "无损", "高音质", "高清"]
         bad_keywords = ["live", "cover", "remix", "8d", "chipmunk", "1 hour", "10 hours",
@@ -508,11 +506,10 @@ def pick_best_audio_id(song, artist):
         if "vevo" in channel_norm or "official" in channel_norm:
             score += 10
 
-        # 歌手匹配大幅加分
         if artist_matched:
             score += 80
         else:
-            score -= 20  # 轻微扣分，不直接淘汰（防止 zhconv 遗漏）
+            score -= 20
 
         log(f"  [CANDIDATE] {title[:45]:<<45} | "
             f"abr={max_abr}k fmt={best_fmt} | song={'✓' if song_matched else '✗'} "
@@ -555,7 +552,7 @@ def download_song(song, artist):
             search_query,
         ]
         try:
-            r = subprocess.run(cmd_id, capture_output=True, text=True, timeout=30, env=ENV)
+            r = subprocess.run(cmd_id, capture_output=True, text=True, errors='replace', timeout=30, env=ENV)
             fallback_id = r.stdout.strip().split("\n")[0].strip()
             if fallback_id:
                 target_url = f"https://www.youtube.com/watch?v={fallback_id}"
@@ -586,14 +583,15 @@ def download_song(song, artist):
     ]
 
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300, env=ENV)
+        r = subprocess.run(cmd, capture_output=True, text=True, errors='replace', timeout=300, env=ENV)
         if r.returncode != 0:
             log("[RETRY] fallback search")
             query2 = f'ytsearch3:"{song}" "{artist}"'
             cmd[-1] = query2
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=300, env=ENV)
+            r = subprocess.run(cmd, capture_output=True, text=True, errors='replace', timeout=300, env=ENV)
             if r.returncode != 0:
-                log(f"[FAIL] {r.stderr[:300]}")
+                err = r.stderr[:300] if r.stderr else "未知错误"
+                log(f"[FAIL] {err}")
                 return False
 
         fp = find_downloaded_file(base_name)
@@ -601,17 +599,17 @@ def download_song(song, artist):
             log("[FAIL] 下载文件不存在")
             return False
 
-        # 1) 无损重封装（webm -> opus），带诊断和备用方案
+        # 1) 无损重封装
         fp = remux_to_opus(fp)
 
-        # 2) 先写文字 metadata（ffmpeg 重新封装）
+        # 2) 先写文字 metadata
         meta_ok = set_metadata(fp, song, artist.replace("&", " / "), comment=source_url)
         if meta_ok:
             log(f"[META] 已写入歌名/歌手/来源")
         else:
             log("[META FAIL] 歌名/歌手写入失败")
 
-        # 3) 再写封面（mutagen 原地修改，支持 opus/m4a/webm）
+        # 3) 再写封面
         thumb = find_thumbnail(base_name)
         if thumb:
             if embed_thumbnail(fp, thumb):
