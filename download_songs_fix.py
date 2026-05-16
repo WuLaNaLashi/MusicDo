@@ -9,6 +9,7 @@ YouTube 高音质音乐下载器
 - 自动写 metadata（歌名/歌手/原始视频地址）+ 嵌入封面
 - 自动将 webm 无损重封装为 opus
 - 同时兼容 opus / m4a 两种音频容器
+- hxg 有时会匹配的文件可能不符合预期
 """
 
 import os
